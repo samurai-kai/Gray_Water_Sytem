@@ -2,10 +2,11 @@
 #include <LiquidCrystal.h>
 
 // RS, E, D4, D5, D6, D7
-static LiquidCrystal lcd(14, 12, 27, 26, 25, 33);
+LiquidCrystal lcd(23, 22, 19, 18, 17, 16);
+
 
 inline void lcd_init() {
-    lcd.begin(16, 2);
+    lcd.begin(16, 2);   // 16x2 display
     lcd.clear();
 }
 
