@@ -1,0 +1,1 @@
+docker exec -it mosquitto mosquitto_sub -u mqttuser -P PASSWORD_HERE -t "graywater/#" -v
