@@ -83,7 +83,7 @@ void Display::showScreen(uint8_t screen) {
                   lcd.print(wifiConnected ? "OK " : "ERR");
 
                   lcd.print(" SVR:");
-                  lcd.print(mqttConnected ? "OK" : "ERR");
+                  lcd.print(mqttConnected ? "OK " : "ERR");
 
                   lcd.setCursor(0, 1);
                   lcd.print("Last:");

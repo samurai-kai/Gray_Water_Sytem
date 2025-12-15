@@ -5,7 +5,7 @@
 #include "config_secret.h"
 
 // ---------------- DISPLAY DRIVER ----------------
-Display display(0, 10000);   // BOOT pin 0, 10-second timeout
+Display display(0, 20000);   // BOOT pin 0, 20-second timeout
 
 // ---------------- MQTT SETTINGS -----------------
 const char* MQTT_SERVER = "192.168.1.87";
