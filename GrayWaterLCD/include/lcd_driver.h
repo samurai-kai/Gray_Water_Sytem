@@ -1,12 +1,16 @@
 #pragma once
-#include <LiquidCrystal.h>
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h>
 
-// RS, E, D4, D5, D6, D7
-LiquidCrystal lcd(23, 22, 19, 18, 17, 16);
+// Most I2C backpacks use address 0x27 or 0x3F
+#define LCD_ADDRESS 0x27
 
+// Create LCD object (16 columns, 2 rows)
+static LiquidCrystal_I2C lcd(LCD_ADDRESS, 16, 2);
 
 inline void lcd_init() {
-    lcd.begin(16, 2);   // 16x2 display
+    lcd.init();
+    lcd.backlight();
     lcd.clear();
 }
 

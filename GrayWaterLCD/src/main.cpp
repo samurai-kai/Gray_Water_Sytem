@@ -1,24 +1,17 @@
 #include <Arduino.h>
-#include <LiquidCrystal.h>
+#include "Display.h"
 
-// RS, E, D4, D5, D6, D7
-LiquidCrystal lcd(23, 22, 19, 18, 17, 16);
+// BOOT button on GPIO0, timeout = 10 seconds
+Display display(0, 10000);
 
 void setup() {
-  Serial.begin(115200);
-  delay(500);
-
-  Serial.println("Starting LCD...");
-
-  lcd.begin(16, 2);
-  lcd.clear();
-
-  lcd.setCursor(0, 0);
-  lcd.print("Hello, world!");
-
-  lcd.setCursor(0, 1);
-  lcd.print("NodeMCU-32S LCD");
-  Serial.println("LCD text written.");
+    Serial.begin(115200);
+    delay(200);
+    display.begin();
 }
 
-void loop() {}
+void loop() {
+    display.update();
+
+    // other program logic goes here
+}
