@@ -55,28 +55,88 @@ void Display::update() {
 
 // ---- Screen definitions ----
 void Display::showScreen(uint8_t screen) {
-    lcd.clear();
+    // Only clear when switching between screens.
+    if (!suppressClear) {
+        lcd.clear();
+    }
+
+    suppressClear = false; // reset for next time
 
     switch (screen) {
         case 0:
-            lcd.setCursor(0, 0);
-            lcd.print("SCREEN 0");
-            lcd.setCursor(0, 1);
-            lcd.print("Hello!");
-            break;
+          {
+              unsigned long now = millis();
+
+              // Redraw only if needed
+              bool wifiChanged       = (wifiConnected != lastWiFi);
+              bool mqttChanged       = (mqttConnected != lastMQTT);
+              bool updateTimeChanged = (lastUpdateTime != lastLastUpdateTime);
+              bool intervalPassed    = (now - lastStatusRedraw > statusRedrawInterval);
+
+              if (wifiChanged || mqttChanged || updateTimeChanged || intervalPassed) {
+
+                  // prevent clearing during status refresh
+                  suppressClear = true;     
+
+                  lcd.setCursor(0, 0);
+                  lcd.print("WiFi:");
+                  lcd.print(wifiConnected ? "OK " : "ERR");
+
+                  lcd.print(" SVR:");
+                  lcd.print(mqttConnected ? "OK" : "ERR");
+
+                  lcd.setCursor(0, 1);
+                  lcd.print("Last:");
+
+                  if (lastUpdateTime == 0) {
+                      lcd.print(" -     ");  // pad to clear leftovers
+                  } else {
+                      unsigned long secs = (now - lastUpdateTime) / 1000;
+                      lcd.print(secs);
+                      lcd.print("s ago ");
+                  }
+
+                  // snapshot tracking
+                  lastWiFi = wifiConnected;
+                  lastMQTT = mqttConnected;
+                  lastLastUpdateTime = lastUpdateTime;
+                  lastStatusRedraw = now;
+              }
+          }
+          break;
 
         case 1:
+            lcd.clear();
             lcd.setCursor(0, 0);
-            lcd.print("SCREEN 1");
+            lcd.print("Dirty Water Lvl");
             lcd.setCursor(0, 1);
-            lcd.print("Tank: 42%");
+            lcd.print("Tank 1: ");
+            lcd.print(dirtyLevel);
+            lcd.print("%   ");
             break;
 
         case 2:
             lcd.setCursor(0, 0);
-            lcd.print("SCREEN 2");
+            lcd.print("Clean Water Lvl");
             lcd.setCursor(0, 1);
-            lcd.print("Cycles: 123");
+            lcd.print("Tank 2: ");
+            lcd.print(cleanLevel);
+            lcd.print("%   ");
+            break;
+
+        case 3:
+            lcd.setCursor(0, 0);
+            lcd.print("Total Cycles");
+            lcd.setCursor(0, 1);
+            lcd.print(cycles);
+            break;
+
+        case 4:
+            lcd.setCursor(0, 0);
+            lcd.print("Amt Water Saved");
+            lcd.setCursor(0, 1);
+            lcd.print(gallonsSaved);
+            lcd.print(" gals   ");
             break;
 
         default:
@@ -89,8 +149,54 @@ void Display::showScreen(uint8_t screen) {
     }
 }
 
+
 // ---- Advance screen ----
 void Display::nextScreen() {
-    currentScreen = (currentScreen + 1) % 3;
+    currentScreen = (currentScreen + 1) % 5;
     showScreen(currentScreen);
 }
+
+void Display::setDirtyLevel(int value) {
+    dirtyLevel = value;
+    if (currentScreen == 0) showScreen(0);
+}
+
+void Display::setCleanLevel(int value) {
+    cleanLevel = value;
+    if (currentScreen == 1) showScreen(1);
+}
+
+void Display::setCycles(int value) {
+    cycles = value;
+    if (currentScreen == 2) showScreen(2);
+}
+
+void Display::setGallonsSaved(int value) {
+    gallonsSaved = value;
+    if (currentScreen == 3) showScreen(3);
+}
+
+void Display::setWiFiStatus(bool connected) {
+    wifiConnected = connected;
+    if (currentScreen == 4) {
+        suppressClear = true;   // prevents flash
+        showScreen(4);
+    }
+}
+
+void Display::setMQTTStatus(bool connected) {
+    mqttConnected = connected;
+    if (currentScreen == 4) {
+        suppressClear = true;   // prevents flash
+        showScreen(4);
+    }
+}
+
+void Display::notifyDataUpdate() {
+    lastUpdateTime = millis();
+    if (currentScreen == 4) {
+        suppressClear = true;   // prevents flash
+        showScreen(4);
+    }
+}
+
