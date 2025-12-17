@@ -51,104 +51,123 @@ void Display::update() {
             showScreen(0);
         }
     }
+
+    // ---- STATUS SCREEN REFRESH ----
+    if (currentScreen == 0) {
+        updateStatusScreen();
+    }
 }
 
 // ---- Screen definitions ----
 void Display::showScreen(uint8_t screen) {
-    // Only clear when switching between screens.
+
+    // Only clear when switching screens
     if (!suppressClear) {
         lcd.clear();
     }
+    suppressClear = false;
 
-    suppressClear = false; // reset for next time
+    currentScreen = screen;
 
     switch (screen) {
+
+        // -------------------------
+        //  SCREEN 0 – SYSTEM STATUS
+        // -------------------------
         case 0:
-          {
-              unsigned long now = millis();
+            lcd.setCursor(0, 0);
+            lcd.print("WiFi:   SVR:  ");
+            lcd.setCursor(0, 1);
+            lcd.print("Last:         ");
+            break;
 
-              // Redraw only if needed
-              bool wifiChanged       = (wifiConnected != lastWiFi);
-              bool mqttChanged       = (mqttConnected != lastMQTT);
-              bool updateTimeChanged = (lastUpdateTime != lastLastUpdateTime);
-              bool intervalPassed    = (now - lastStatusRedraw > statusRedrawInterval);
-
-              if (wifiChanged || mqttChanged || updateTimeChanged || intervalPassed) {
-
-                  // prevent clearing during status refresh
-                  suppressClear = true;     
-
-                  lcd.setCursor(0, 0);
-                  lcd.print("WiFi:");
-                  lcd.print(wifiConnected ? "OK " : "ERR");
-
-                  lcd.print(" SVR:");
-                  lcd.print(mqttConnected ? "OK " : "ERR");
-
-                  lcd.setCursor(0, 1);
-                  lcd.print("Last:");
-
-                  if (lastUpdateTime == 0) {
-                      lcd.print(" -     ");  // pad to clear leftovers
-                  } else {
-                      unsigned long secs = (now - lastUpdateTime) / 1000;
-                      lcd.print(secs);
-                      lcd.print("s ago ");
-                  }
-
-                  // snapshot tracking
-                  lastWiFi = wifiConnected;
-                  lastMQTT = mqttConnected;
-                  lastLastUpdateTime = lastUpdateTime;
-                  lastStatusRedraw = now;
-              }
-          }
-          break;
-
+        // -------------------------
+        //  SCREEN 1 – DIRTY WATER
+        // -------------------------
         case 1:
-            lcd.clear();
             lcd.setCursor(0, 0);
             lcd.print("Dirty Water Lvl");
             lcd.setCursor(0, 1);
-            lcd.print("Tank 1: ");
-            lcd.print(dirtyLevel);
-            lcd.print("%   ");
+            lcd.print("Tank 1:        ");  // values overwrite
             break;
 
+        // -------------------------
+        //  SCREEN 2 – CLEAN WATER
+        // -------------------------
         case 2:
             lcd.setCursor(0, 0);
             lcd.print("Clean Water Lvl");
             lcd.setCursor(0, 1);
-            lcd.print("Tank 2: ");
-            lcd.print(cleanLevel);
-            lcd.print("%   ");
+            lcd.print("Tank 2:        ");
             break;
 
+        // -------------------------
+        //  SCREEN 3 – CYCLES
+        // -------------------------
         case 3:
             lcd.setCursor(0, 0);
             lcd.print("Total Cycles");
             lcd.setCursor(0, 1);
-            lcd.print(cycles);
+            lcd.print("                ");
             break;
 
+        // -------------------------
+        //  SCREEN 4 – GALLONS SAVED
+        // -------------------------
         case 4:
             lcd.setCursor(0, 0);
             lcd.print("Amt Water Saved");
             lcd.setCursor(0, 1);
-            lcd.print(gallonsSaved);
-            lcd.print(" gals   ");
+            lcd.print("                ");
             break;
 
         default:
             lcd.setCursor(0, 0);
-            lcd.print("Invalid");
+            lcd.print("Invalid Screen");
             lcd.setCursor(0, 1);
-            lcd.print("Screen");
-            currentScreen = 0;
+            lcd.print("                ");
             break;
     }
 }
 
+void Display::updateStatusScreen() {
+
+    unsigned long now = millis();
+    bool wifiChanged       = (wifiConnected != lastWiFi);
+    bool mqttChanged       = (mqttConnected != lastMQTT);
+    bool updateTimeChanged = (lastUpdateTime != lastLastUpdateTime);
+    bool intervalPassed    = (now - lastStatusRedraw > statusRedrawInterval);
+
+    if (!(wifiChanged || mqttChanged || updateTimeChanged || intervalPassed)) return;
+
+    // ---- UPDATE VALUES ONLY ----
+    suppressClear = true;
+
+    // WiFi
+    lcd.setCursor(5, 0);
+    lcd.print(wifiConnected ? "OK " : "ERR");
+
+    // MQTT
+    lcd.setCursor(12, 0);
+    lcd.print(mqttConnected ? "OK " : "ERR");
+
+    // Last Update
+    lcd.setCursor(5, 1);
+    if (lastUpdateTime == 0) {
+        lcd.print(" -    ");
+    } else {
+        unsigned long secs = (now - lastUpdateTime) / 1000;
+        char buf[7];
+        sprintf(buf, "%lu s ", secs);
+        lcd.print(buf);
+    }
+
+    // Snapshot
+    lastWiFi = wifiConnected;
+    lastMQTT = mqttConnected;
+    lastLastUpdateTime = lastUpdateTime;
+    lastStatusRedraw = now;
+}
 
 // ---- Advance screen ----
 void Display::nextScreen() {
@@ -158,45 +177,60 @@ void Display::nextScreen() {
 
 void Display::setDirtyLevel(int value) {
     dirtyLevel = value;
-    if (currentScreen == 0) showScreen(0);
+
+    if (currentScreen == 1) {
+        lcd.setCursor(8, 1);
+        lcd.print("     ");       // clear old number
+        lcd.setCursor(8, 1);
+        lcd.print(dirtyLevel);
+        lcd.print("%");
+    }
 }
 
 void Display::setCleanLevel(int value) {
     cleanLevel = value;
-    if (currentScreen == 1) showScreen(1);
+
+    if (currentScreen == 2) {
+        lcd.setCursor(8, 1);
+        lcd.print("     ");
+        lcd.setCursor(8, 1);
+        lcd.print(cleanLevel);
+        lcd.print("%");
+    }
 }
 
 void Display::setCycles(int value) {
     cycles = value;
-    if (currentScreen == 2) showScreen(2);
+
+    if (currentScreen == 3) {
+        lcd.setCursor(0, 1);
+        lcd.print("                ");
+        lcd.setCursor(0, 1);
+        lcd.print(cycles);
+    }
 }
 
 void Display::setGallonsSaved(int value) {
     gallonsSaved = value;
-    if (currentScreen == 3) showScreen(3);
+
+    if (currentScreen == 4) {
+        lcd.setCursor(0, 1);
+        lcd.print("                ");
+        lcd.setCursor(0, 1);
+        lcd.print(gallonsSaved);
+        lcd.print(" gals");
+    }
 }
 
 void Display::setWiFiStatus(bool connected) {
     wifiConnected = connected;
-    if (currentScreen == 4) {
-        suppressClear = true;   // prevents flash
-        showScreen(4);
-    }
 }
 
 void Display::setMQTTStatus(bool connected) {
     mqttConnected = connected;
-    if (currentScreen == 4) {
-        suppressClear = true;   // prevents flash
-        showScreen(4);
-    }
 }
 
 void Display::notifyDataUpdate() {
     lastUpdateTime = millis();
-    if (currentScreen == 4) {
-        suppressClear = true;   // prevents flash
-        showScreen(4);
-    }
 }
 

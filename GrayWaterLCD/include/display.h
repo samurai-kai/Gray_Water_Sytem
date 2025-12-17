@@ -56,7 +56,6 @@ private:
     bool lastMQTT = false;
     unsigned long lastLastUpdateTime = 0;
     bool suppressClear = false;
-
-
+    void updateStatusScreen();
     void nextScreen();
 };
