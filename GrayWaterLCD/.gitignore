@@ -48,3 +48,42 @@ docker/nodered/data/node_modules/
 Thumbs.db
 .DS_Store
 *.log
+
+# -----------------------
+# Node-RED (do NOT commit runtime data)
+# -----------------------
+docker/nodered/data/
+docker/nodered/data/*
+
+# Node-RED credentials file (contains tokens)
+flows_cred.json
+*.backup
+*.json.backup
+
+# -----------------------
+# PlatformIO / ESP32 secrets
+# -----------------------
+config_secret.h
+secrets.h
+*.env
+
+# PlatformIO build files
+.pio/
+.pioenvs/
+.piolibdeps/
+.vscode/.browse.c_cpp.db*
+
+# -----------------------
+# Docker
+# -----------------------
+**/data/
+**/log/
+**/logs/
+docker/**/data/
+docker/**/log/
+
+# -----------------------
+# General OS
+# -----------------------
+.DS_Store
+Thumbs.db
