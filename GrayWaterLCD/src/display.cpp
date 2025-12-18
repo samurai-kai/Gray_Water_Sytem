@@ -61,12 +61,9 @@ void Display::update() {
 // ---- Screen definitions ----
 void Display::showScreen(uint8_t screen) {
 
-    // Only clear when switching screens
-    if (!suppressClear) {
-        lcd.clear();
-    }
     suppressClear = false;
 
+    lcd.clear();
     currentScreen = screen;
 
     switch (screen) {
@@ -107,9 +104,11 @@ void Display::showScreen(uint8_t screen) {
         case 3:
             lcd.setCursor(0, 0);
             lcd.print("Total Cycles");
+
             lcd.setCursor(0, 1);
-            lcd.print("                ");
+            lcd.print("                ");          
             break;
+
 
         // -------------------------
         //  SCREEN 4 – GALLONS SAVED
@@ -117,16 +116,11 @@ void Display::showScreen(uint8_t screen) {
         case 4:
             lcd.setCursor(0, 0);
             lcd.print("Amt Water Saved");
+
             lcd.setCursor(0, 1);
-            lcd.print("                ");
+            lcd.print("                ");  
             break;
 
-        default:
-            lcd.setCursor(0, 0);
-            lcd.print("Invalid Screen");
-            lcd.setCursor(0, 1);
-            lcd.print("                ");
-            break;
     }
 }
 

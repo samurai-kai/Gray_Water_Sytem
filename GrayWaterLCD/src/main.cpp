@@ -11,11 +11,17 @@ Display display(0, 20000);   // BOOT pin 0, 20-second timeout
 const char* MQTT_SERVER = "192.168.1.87";
 const int   MQTT_PORT   = 1883;
 
-// Incoming topics (from your SENSOR ESP32)
-const char* TOPIC_DISTANCE = "graywater/distance_in";
-const char* TOPIC_HEIGHT   = "graywater/water_height_in";
-const char* TOPIC_GALLONS  = "graywater/gallons";
-const char* TOPIC_PERCENT  = "graywater/percent";
+// CLEAN TANK TOPICS
+const char* T_CLEAN_PERCENT     = "graywater/clean/percent";
+const char* T_CLEAN_GALLONS     = "graywater/clean/gallons";
+const char* T_CLEAN_PUMP        = "graywater/clean/pump_state";
+const char* T_CLEAN_CYCLES      = "graywater/clean/cycles";
+const char* T_CLEAN_TOTAL       = "graywater/clean/total_gallons";
+
+// DIRTY TANK TOPICS
+const char* T_DIRTY_PERCENT     = "graywater/dirty/percent";
+const char* T_DIRTY_GALLONS     = "graywater/dirty/gallons";
+const char* T_DIRTY_PUMP        = "graywater/dirty/pump_state";
 
 // ------------------------------------------------
 WiFiClient espClient;
@@ -46,17 +52,21 @@ void connectMQTT() {
             Serial.println("connected!");
             display.setMQTTStatus(true);
 
-            // SUBSCRIBE TO SENSOR TOPICS
-            client.subscribe(TOPIC_DISTANCE);
-            client.subscribe(TOPIC_HEIGHT);
-            client.subscribe(TOPIC_GALLONS);
-            client.subscribe(TOPIC_PERCENT);
+            // SUBSCRIBE TO ALL UPDATED TOPICS
+            client.subscribe(T_CLEAN_PERCENT);
+            client.subscribe(T_CLEAN_GALLONS);
+            client.subscribe(T_CLEAN_PUMP);
+            client.subscribe(T_CLEAN_CYCLES);
+            client.subscribe(T_CLEAN_TOTAL);
+
+            client.subscribe(T_DIRTY_PERCENT);
+            client.subscribe(T_DIRTY_GALLONS);
+            client.subscribe(T_DIRTY_PUMP);
 
         } else {
             Serial.print("FAILED rc=");
             Serial.print(client.state());
-            Serial.println(" retry in 2s...");
-
+            Serial.println(" retrying...");
             display.setMQTTStatus(false);
             delay(2000);
         }
@@ -66,39 +76,35 @@ void connectMQTT() {
 // -------------- MQTT CALLBACK -------------------
 void callback(char* topic, byte* payload, unsigned int length) {
     payload[length] = '\0';
-    String valueStr = String((char*)payload);
-    float value = valueStr.toFloat();
+    float value = atof((char*)payload);
 
-    Serial.print("MQTT: ");
-    Serial.print(topic);
-    Serial.print(" = ");
-    Serial.println(value);
-
-    // NEW DATA RECEIVED
+    Serial.printf("MQTT: %s = %.2f\n", topic, value);
     display.notifyDataUpdate();
 
-    // Interpret Topics → Display Variables
-    if (strcmp(topic, TOPIC_PERCENT) == 0) {
-        display.setDirtyLevel((int)value);
-    }
-
-    if (strcmp(topic, TOPIC_GALLONS) == 0) {
-        display.setGallonsSaved((int)value);
-    }
-
-    if (strcmp(topic, TOPIC_DISTANCE) == 0) {
+    // ---------------- CLEAN TANK ----------------
+    if (strcmp(topic, T_CLEAN_PERCENT) == 0)
         display.setCleanLevel((int)value);
-    }
 
-    if (strcmp(topic, TOPIC_HEIGHT) == 0) {
+    if (strcmp(topic, T_CLEAN_TOTAL) == 0)
+        display.setGallonsSaved((int)value);
+
+    // if (strcmp(topic, T_CLEAN_PUMP) == 0)
+    //     display.setCleanPumpState((int)value);
+
+    if (strcmp(topic, T_CLEAN_CYCLES) == 0)
         display.setCycles((int)value);
-    }
+
+    // ---------------- DIRTY TANK ----------------
+    if (strcmp(topic, T_DIRTY_PERCENT) == 0)
+        display.setDirtyLevel((int)value);
+
+    // if (strcmp(topic, T_DIRTY_PUMP) == 0)
+    //     display.setDirtyPumpState((int)value);
 }
 
 // ------------------ SETUP -----------------------
 void setup() {
     Serial.begin(115200);
-    delay(300);
 
     display.begin();
 
@@ -111,15 +117,11 @@ void setup() {
 
 // ------------------ LOOP ------------------------
 void loop() {
-    // MQTT reconnect if needed
     if (!client.connected()) {
         connectMQTT();
     }
     client.loop();
 
-    // Update display (buttons, timeout, screen refresh)
     display.update();
-
-    // Keep WiFi status updated on Screen 4
     display.setWiFiStatus(WiFi.status() == WL_CONNECTED);
 }

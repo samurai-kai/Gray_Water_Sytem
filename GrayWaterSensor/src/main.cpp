@@ -1,27 +1,40 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <Preferences.h>
 
 #include "Ultrasonic.h"
 #include "Tank.h"
+#include "Pump.h"
 #include "config_secret.h"
 
-
 // ------------------ USER SETTINGS ------------------
-const char* MQTT_SERVER = "192.168.1.87";  // Your MQTT broker IP
+const char* MQTT_SERVER = "192.168.1.87";
 const int   MQTT_PORT   = 1883;
 
-// Hardware
-Ultrasonic sensor(5, 18);  // TRIG, ECHO pins
-Tank tank(12, 4, 1);       // height, diameter, capacity (gallons)
+// clean tank hardware
+Ultrasonic sensorClean(5, 18);  
+Tank tankClean(12, 4, 1);
+Pump pumpClean(26, 80, 20, false);
+
+// dirty tank hardware
+Ultrasonic sensorDirty(17, 16);
+Tank tankDirty(12, 4, 1);
+Pump pumpDirty(27, 80, 20, true);
+
 // ---------------------------------------------------
 
-// WiFi + MQTT clients
 WiFiClient espClient;
 PubSubClient client(espClient);
+Preferences prefs;
+
+// Persisted + runtime variables
+float lastCleanGallons = 0;
+float totalCleanGallonsOut = 0;
+int cleanPumpCycles = 0;
 
 // ---------------------------------------------------
-// Connect to WiFi
+// WIFI
 void connectWiFi() {
     Serial.print("Connecting to WiFi");
     WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -34,18 +47,18 @@ void connectWiFi() {
     Serial.println("\nWiFi connected!");
 }
 
-// Connect to MQTT broker
+// MQTT
 void connectMQTT() {
     client.setServer(MQTT_SERVER, MQTT_PORT);
 
-    Serial.print("Connecting to MQTT...");
+    Serial.print("Connecting MQTT...");
     while (!client.connected()) {
         if (client.connect("graywater_sensor", MQTT_USER, MQTT_PASS)) {
             Serial.println("connected!");
         } else {
-            Serial.print("failed, rc=");
+            Serial.print("failed rc=");
             Serial.print(client.state());
-            Serial.println(" retrying in 2s...");
+            Serial.println(" retrying...");
             delay(2000);
         }
     }
@@ -54,41 +67,103 @@ void connectMQTT() {
 
 void setup() {
     Serial.begin(115200);
-    sensor.begin();
+
+    sensorClean.begin();
+    sensorDirty.begin();
+    pumpClean.begin();
+    pumpDirty.begin();
 
     connectWiFi();
     connectMQTT();
+
+    // Restore persistent values
+    prefs.begin("graywater", false);
+    cleanPumpCycles = prefs.getInt("cleanCycles", 0);
+    totalCleanGallonsOut = prefs.getFloat("cleanTotalOut", 0.0f);
+    prefs.end();
+
+    Serial.printf("Restored cycles: %d\n", cleanPumpCycles);
+    Serial.printf("Restored total gallons out: %.2f\n", totalCleanGallonsOut);
+
+    // Initialize clean tank reference level
+    float initialDist = sensorClean.readIn();
+    float initialH = tankClean.getTankHeight() - initialDist;
+    if (initialH < 0) initialH = 0;
+    lastCleanGallons = tankClean.getGallons(initialH);
 }
 
 void loop() {
-    if (!client.connected()) {
-        connectMQTT();
-    }
+
+    if (!client.connected()) connectMQTT();
     client.loop();
 
-    float distanceIn = sensor.readIn();
+    // ---------- CLEAN TANK ----------
+    float dClean = sensorClean.readIn();
+    float hClean = 0, galClean = 0, pctClean = 0;
 
-    if (distanceIn < 0) {
-        Serial.println("No echo");
-        delay(500);
-        return;
+    if (dClean >= 0) {
+        hClean = tankClean.getTankHeight() - dClean;
+        if (hClean < 0) hClean = 0;
+
+        galClean = tankClean.getGallons(hClean);
+        pctClean = tankClean.getPercentFull(hClean);
+
+        // Track water out of clean tank
+        if (pumpClean.isRunning() && galClean < lastCleanGallons) {
+            float diffClean = lastCleanGallons - galClean;
+
+            cleanPumpCycles++;
+            totalCleanGallonsOut += diffClean;
+
+            // Save updates
+            prefs.begin("graywater", false);
+            prefs.putInt("cleanCycles", cleanPumpCycles);
+            prefs.putFloat("cleanTotalOut", totalCleanGallonsOut);
+            prefs.end();
+        }
+
+        lastCleanGallons = galClean;
     }
 
-    // Convert ultrasonic distance to water height
-    float waterHeight = tank.getTankHeight() - distanceIn;
-    if (waterHeight < 0) waterHeight = 0;
+    // ---------- DIRTY TANK ----------
+    float dDirty = sensorDirty.readIn();
+    float hDirty = 0, galDirty = 0, pctDirty = 0;
 
-    // Calculate tank values
-    float gallons = tank.getGallons(waterHeight);
-    float percent = tank.getPercentFull(waterHeight);
+    if (dDirty >= 0) {
+        hDirty = tankDirty.getTankHeight() - dDirty;
+        if (hDirty < 0) hDirty = 0;
 
-    // Publish MQTT data
-    client.publish("graywater/distance_in", String(distanceIn).c_str());
-    client.publish("graywater/water_height_in", String(waterHeight).c_str());
-    client.publish("graywater/gallons",        String(gallons).c_str());
-    client.publish("graywater/percent",        String(percent).c_str());
+        galDirty = tankDirty.getGallons(hDirty);
+        pctDirty = tankDirty.getPercentFull(hDirty);
+    }
 
-    Serial.println("Published tank data to MQTT!");
+    // ---------- PUMP FSM UPDATES ----------
+    pumpClean.update(
+        pctClean,
+        galClean,
+        galDirty,
+        tankDirty.getCapacity()
+    );
+
+    pumpDirty.update(
+        pctDirty,
+        galDirty,
+        galClean,
+        tankClean.getCapacity()
+    );
+
+    // ---------- MQTT PUBLISH (ALL RETAINED) ----------
+    // CLEAN tank
+    client.publish("graywater/clean/percent", String(pctClean).c_str(), true);
+    client.publish("graywater/clean/gallons", String(galClean).c_str(), true);
+    client.publish("graywater/clean/cycles", String(cleanPumpCycles).c_str(), true);
+    client.publish("graywater/clean/total_gallons", String(totalCleanGallonsOut).c_str(), true);
+    client.publish("graywater/clean/pump_state", pumpClean.isRunning() ? "1" : "0", true);
+
+    // DIRTY tank
+    client.publish("graywater/dirty/percent", String(pctDirty).c_str(), true);
+    client.publish("graywater/dirty/gallons", String(galDirty).c_str(), true);
+    client.publish("graywater/dirty/pump_state", pumpDirty.isRunning() ? "1" : "0", true);
 
     delay(2000);
 }

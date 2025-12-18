@@ -3,3 +3,8 @@
 
 docker compose pull
 docker compose up -d
+
+
+@REM if port fail
+docker compose down
+docker compose up -d

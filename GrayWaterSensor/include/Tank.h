@@ -13,6 +13,7 @@ public:
 
     float getTankHeight() const { return _height; }
     float getTankDiameter() const { return _diameter; }
+    float getCapacity() const { return _capacity; }
 
 private:
     float _height;    // inches
