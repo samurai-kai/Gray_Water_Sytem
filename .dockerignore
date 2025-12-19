@@ -1,0 +1,74 @@
+# =============================================================================
+# GLOBAL IGNORE (things that should NEVER enter a Docker build context)
+# =============================================================================
+.git/
+.gitignore
+.dockerignore
+*.md
+
+# =============================================================================
+# Node-RED (contains credentials and tokens)
+# =============================================================================
+docker/nodered/data/
+docker/nodered/data/*
+docker/nodered/.config.runtime.json
+
+# =============================================================================
+# InfluxDB (contains tokens and internal storage)
+# =============================================================================
+docker/influxdb/data/
+docker/influxdb/data/*
+docker/influxdb/engine/
+
+# =============================================================================
+# Grafana (contains admin accounts and dashboards)
+# =============================================================================
+docker/grafana/data/
+docker/grafana/data/*
+
+# =============================================================================
+# Mosquitto (credentials)
+# =============================================================================
+docker/mosquitto/config/passwords
+docker/mosquitto/config/*.passwd
+
+# Allow config files but block runtime
+docker/mosquitto/data/
+
+# =============================================================================
+# PlatformIO / ESP32 (large build directories)
+# =============================================================================
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# =============================================================================
+# Secrets
+# =============================================================================
+config_secret.h
+src/config_secret.h
+include/config_secret.h
+*.env
+*_secret.*
+*_creds.*
+*_token.*
+
+# =============================================================================
+# Temporary / Runtime / OS files
+# =============================================================================
+*.log
+**/log/
+**/tmp/
+Thumbs.db
+.DS_Store
+
+# =============================================================================
+# Docker build cache & artifacts
+# =============================================================================
+docker-compose.yml
+docker-compose-dev.yml
+docker-compose.prod.yml
+
+# Ignore backup or auto-generated files
+*.backup
+*.json.backup

@@ -1,89 +1,68 @@
-# -----------------------------------------------------------------------------
-# ESP32 / PlatformIO ignores
-# -----------------------------------------------------------------------------
-.pio/
-.vscode/
-*.code-workspace
-
-# Secrets (DO NOT TRACK WiFi passwords or MQTT credentials)
-src/config_secret.h
-include/config_secret.h
-
-# -----------------------------------------------------------------------------
-# Docker IoT Stack (Mosquitto, Node-RED, InfluxDB, Grafana)
-# -----------------------------------------------------------------------------
-
-# Mosquitto sensitive files
-docker/mosquitto/config/passwords
-docker/mosquitto/config/*.passwd
-
-# InfluxDB internal data (contains tokens)
-docker/influxdb/data/
-docker/influxdb/config/*
-
-# Grafana data (contains admin accounts & dashboards)
-docker/grafana/data/
-
-# Node-RED flow data (flows contain function code and personal settings)
-docker/nodered/data/flows.json
-docker/nodered/data/flows_cred.json
-docker/nodered/data/.config.*
-
-# Node-RED runtime directories
-docker/nodered/data/node_modules/
-
-# -----------------------------------------------------------------------------
-# General sensitive configs
-# -----------------------------------------------------------------------------
-
-# Any file ending in *_secret.*, *_creds.*, *_passwords.*
-*_secret.*
-*_creds.*
-*_token.*
-*.env
-
-# -----------------------------------------------------------------------------
-# System files
-# -----------------------------------------------------------------------------
-Thumbs.db
-.DS_Store
-*.log
-
-# -----------------------
-# Node-RED (do NOT commit runtime data)
-# -----------------------
-docker/nodered/data/
-docker/nodered/data/*
-
-# Node-RED credentials file (contains tokens)
-flows_cred.json
-*.backup
-*.json.backup
-
-# -----------------------
-# PlatformIO / ESP32 secrets
-# -----------------------
-config_secret.h
-secrets.h
-*.env
-
-# PlatformIO build files
+# =============================================================================
+# ESP32 / PlatformIO
+# =============================================================================
 .pio/
 .pioenvs/
 .piolibdeps/
+.vscode/
+*.code-workspace
 .vscode/.browse.c_cpp.db*
 
-# -----------------------
-# Docker
-# -----------------------
-**/data/
+# Secrets
+config_secret.h
+secrets.h
+src/config_secret.h
+include/config_secret.h
+*.env
+*_secret.*
+*_creds.*
+*_token.*
+
+# =============================================================================
+# Docker IoT Stack (Mosquitto, Node-RED, InfluxDB, Grafana)
+# =============================================================================
+
+# ----------------------
+# Mosquitto
+# ----------------------
+docker/mosquitto/config/passwords
+docker/mosquitto/config/*.passwd
+
+# ----------------------
+# InfluxDB  (runtime data only)
+# ----------------------
+docker/influxdb/data/
+
+# ----------------------
+# Grafana  (runtime data only — contains admin accounts)
+# ----------------------
+docker/grafana/data/
+
+# ----------------------
+# Node-RED  (FULL RUNTIME BLOCK — contains secrets)
+# ----------------------
+docker/nodered/data/
+docker/nodered/data/*
+
+# Catch any Node-RED backup or credential files
+*.backup
+*.json.backup
+flows_cred.json
+
+# =============================================================================
+# Logs, runtime, and temporary files
+# =============================================================================
+*.log
 **/log/
 **/logs/
-docker/**/data/
 docker/**/log/
+docker/**/logs/
 
-# -----------------------
-# General OS
-# -----------------------
+# Catch-all for Docker runtime data folders
+docker/**/data/
+
+# =============================================================================
+# OS Files
+# =============================================================================
 .DS_Store
 Thumbs.db
