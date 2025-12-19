@@ -35,29 +35,50 @@ void Pump::update(
     {
         // ---------------------------------------------------------
         case PUMP_INIT:
-            // Immediately transition into sensing state
             state = PUMP_SENSE;
             break;
 
         // ---------------------------------------------------------
         case PUMP_SENSE:
         {
-            // If the tank is below lower threshold, pump stops forever until refilled
+            // BELOW LOWER → pump must stay off, can't run
             if (thisPct <= lower) {
                 stop();
+                state = PUMP_SENSE;
                 return;
             }
 
-            // CLEAN PUMP LOGIC (simple SENSE→RUN)
-            if (!dirtyMode) {
+            // -------------------------------------------------
+            // CLEAN PUMP LOGIC
+            // -------------------------------------------------
+            if (!dirtyMode)
+            {
+                // Normal automatic mode:
                 if (thisPct >= upper) {
                     start();
                     state = PUMP_RUN;
                 }
+
+                // Respond to dirty-pump request:
+                if (requestCleanPump)
+                {
+                    // can only help if clean tank has water
+                    if (thisPct > lower)
+                    {
+                        start();
+                        state = PUMP_RUN;
+                    }
+
+                    // Either way → request handled
+                    requestCleanPump = false;
+                }
             }
 
-            // DIRTY PUMP LOGIC (SENSE→WAIT)
-            else {
+            // -------------------------------------------------
+            // DIRTY PUMP LOGIC
+            // -------------------------------------------------
+            else
+            {
                 if (thisPct >= upper) {
                     state = PUMP_WAIT;
                 }
@@ -69,25 +90,26 @@ void Pump::update(
         case PUMP_WAIT:
         {
             if (!dirtyMode) {
-                // Should never be here for clean pump
+                // clean pump should not be here
                 state = PUMP_SENSE;
                 break;
             }
 
-            // Dirty pump waits until clean tank has enough space
-            //
-            // We want to ensure:
-            //   clean_free_space >= dirty_gallons_to_move
-            //
-            float requiredSpace = thisGallons;               // dirty gallons that would be pumped
-            float availableSpace = (otherCapacity - otherGallons);
+            // Dirty→Clean transfer conditions:
+            float requiredSpace   = thisGallons;                         // dirty tank volume to move
+            float availableSpace  = (otherCapacity - otherGallons);      // free space in clean tank
 
+            // Clean tank has enough room, start pumping
             if (availableSpace >= requiredSpace) {
                 start();
                 state = PUMP_RUN;
             }
+            else {
+                // Not enough room, request clean pump to create space
+                requestCleanPump = true;
+            }
 
-            // Cancel wait if dirty tank falls too low
+            // Dirty tank dropped too low, abort WAIT
             if (thisPct <= lower) {
                 stop();
                 state = PUMP_SENSE;
@@ -98,7 +120,7 @@ void Pump::update(
         // ---------------------------------------------------------
         case PUMP_RUN:
         {
-            // Pump continues running until tank drops to lower threshold
+            // Stop once tank hits lower limit
             if (thisPct <= lower) {
                 stop();
                 state = PUMP_SENSE;
@@ -107,3 +129,4 @@ void Pump::update(
         break;
     }
 }
+

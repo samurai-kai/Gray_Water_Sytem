@@ -205,7 +205,8 @@
         "wires": [
             [
                 "http_influx_write",
-                "dbg_influx_line"
+                "dbg_influx_line",
+                "4c731c26fb71428f"
             ]
         ]
     },
@@ -263,6 +264,23 @@
         "statusType": "auto",
         "x": 1030,
         "y": 200,
+        "wires": []
+    },
+    {
+        "id": "4c731c26fb71428f",
+        "type": "debug",
+        "z": "f_graywater_flow",
+        "name": "Influx Line Debug",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 730,
+        "y": 300,
         "wires": []
     }
 ]

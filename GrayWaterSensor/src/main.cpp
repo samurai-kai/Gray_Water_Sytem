@@ -13,7 +13,7 @@ const char* MQTT_SERVER = "192.168.1.87";
 const int   MQTT_PORT   = 1883;
 
 // clean tank hardware
-Ultrasonic sensorClean(5, 18);  
+Ultrasonic sensorClean(5, 18);
 Tank tankClean(12, 4, 1);
 Pump pumpClean(26, 80, 20, false);
 
@@ -32,6 +32,11 @@ Preferences prefs;
 float lastCleanGallons = 0;
 float totalCleanGallonsOut = 0;
 int cleanPumpCycles = 0;
+
+// Pump cycle tracking state
+bool cleanPumpPrevState = false;
+float cleanPumpStartGallons = 0;
+bool requestCleanPump = false;
 
 // ---------------------------------------------------
 // WIFI
@@ -76,6 +81,10 @@ void setup() {
     connectWiFi();
     connectMQTT();
 
+    
+    prefs.begin("graywater", false);
+    prefs.clear();
+    prefs.end();    
     // Restore persistent values
     prefs.begin("graywater", false);
     cleanPumpCycles = prefs.getInt("cleanCycles", 0);
@@ -108,20 +117,6 @@ void loop() {
         galClean = tankClean.getGallons(hClean);
         pctClean = tankClean.getPercentFull(hClean);
 
-        // Track water out of clean tank
-        if (pumpClean.isRunning() && galClean < lastCleanGallons) {
-            float diffClean = lastCleanGallons - galClean;
-
-            cleanPumpCycles++;
-            totalCleanGallonsOut += diffClean;
-
-            // Save updates
-            prefs.begin("graywater", false);
-            prefs.putInt("cleanCycles", cleanPumpCycles);
-            prefs.putFloat("cleanTotalOut", totalCleanGallonsOut);
-            prefs.end();
-        }
-
         lastCleanGallons = galClean;
     }
 
@@ -152,13 +147,40 @@ void loop() {
         tankClean.getCapacity()
     );
 
-    // ---------- MQTT PUBLISH (ALL RETAINED) ----------
+    // ---------- CLEAN PUMP CYCLE TRACKING ----------
+    bool cleanPumpNow = pumpClean.isRunning();
+
+    // Pump turned ON → store starting gallons
+    if (!cleanPumpPrevState && cleanPumpNow) {
+        cleanPumpStartGallons = galClean;
+    }
+
+    // Pump turned OFF → cycle completed
+    if (cleanPumpPrevState && !cleanPumpNow) {
+        float pumped = cleanPumpStartGallons - galClean;
+        if (pumped < 0) pumped = 0;
+
+        cleanPumpCycles++;
+        totalCleanGallonsOut += pumped;
+
+        // Save persistent data
+        prefs.begin("graywater", false);
+        prefs.putInt("cleanCycles", cleanPumpCycles);
+        prefs.putFloat("cleanTotalOut", totalCleanGallonsOut);
+        prefs.end();
+
+        Serial.printf("Cycle complete! Pumped: %.2f gallons\n", pumped);
+    }
+
+    cleanPumpPrevState = cleanPumpNow;
+
+    // ---------- MQTT PUBLISH ----------
     // CLEAN tank
     client.publish("graywater/clean/percent", String(pctClean).c_str(), true);
     client.publish("graywater/clean/gallons", String(galClean).c_str(), true);
     client.publish("graywater/clean/cycles", String(cleanPumpCycles).c_str(), true);
     client.publish("graywater/clean/total_gallons", String(totalCleanGallonsOut).c_str(), true);
-    client.publish("graywater/clean/pump_state", pumpClean.isRunning() ? "1" : "0", true);
+    client.publish("graywater/clean/pump_state", cleanPumpNow ? "1" : "0", true);
 
     // DIRTY tank
     client.publish("graywater/dirty/percent", String(pctDirty).c_str(), true);

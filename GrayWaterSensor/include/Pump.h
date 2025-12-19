@@ -3,6 +3,8 @@
 
 #include <Arduino.h>
 
+extern bool requestCleanPump;
+
 enum PumpState {
     PUMP_INIT = 0,
     PUMP_SENSE,
@@ -33,7 +35,6 @@ private:
     float lower;
     bool running;
     bool dirtyMode; // dirty pump uses WAIT state
-
     PumpState state;
 
     void start();
