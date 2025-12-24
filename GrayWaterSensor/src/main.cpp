@@ -14,12 +14,12 @@ const int   MQTT_PORT   = 1883;
 
 // clean tank hardware
 Ultrasonic sensorClean(5, 18);
-Tank tankClean(12, 4, 1);
+Tank tankClean(30, 4, 5);
 Pump pumpClean(26, 80, 20, false);
 
 // dirty tank hardware
 Ultrasonic sensorDirty(17, 16);
-Tank tankDirty(12, 4, 1);
+Tank tankDirty(30, 4, 5);
 Pump pumpDirty(27, 80, 20, true);
 
 // ---------------------------------------------------
@@ -119,7 +119,7 @@ void loop() {
 
         lastCleanGallons = galClean;
     }
-
+    delay(50);
     // ---------- DIRTY TANK ----------
     float dDirty = sensorDirty.readIn();
     float hDirty = 0, galDirty = 0, pctDirty = 0;

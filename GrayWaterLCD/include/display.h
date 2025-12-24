@@ -19,6 +19,8 @@ public:
     void setMQTTStatus(bool connected);
     void notifyDataUpdate();   // call this whenever MQTT data arrives
 
+    void setCleanPumpState(bool on);
+    void setDirtyPumpState(bool on);
 
 private:
     LiquidCrystal_I2C lcd;
@@ -58,4 +60,13 @@ private:
     bool suppressClear = false;
     void updateStatusScreen();
     void nextScreen();
+
+    bool cleanPumpOn = false;
+    bool dirtyPumpOn = false;
+    bool displayLocked = false;
+
+    bool pumpWarningActive = false;
+    uint8_t screenBeforeWarning = 0;
+
+    void showPumpWarning();
 };

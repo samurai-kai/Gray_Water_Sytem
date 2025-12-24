@@ -88,8 +88,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (strcmp(topic, T_CLEAN_TOTAL) == 0)
         display.setGallonsSaved((int)value);
 
-    // if (strcmp(topic, T_CLEAN_PUMP) == 0)
-    //     display.setCleanPumpState((int)value);
+    if (strcmp(topic, T_CLEAN_PUMP) == 0)
+        display.setCleanPumpState((int)value);
 
     if (strcmp(topic, T_CLEAN_CYCLES) == 0)
         display.setCycles((int)value);
@@ -98,8 +98,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     if (strcmp(topic, T_DIRTY_PERCENT) == 0)
         display.setDirtyLevel((int)value);
 
-    // if (strcmp(topic, T_DIRTY_PUMP) == 0)
-    //     display.setDirtyPumpState((int)value);
+    if (strcmp(topic, T_DIRTY_PUMP) == 0)
+        display.setDirtyPumpState((int)value);
 }
 
 // ------------------ SETUP -----------------------

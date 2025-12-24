@@ -6,7 +6,6 @@
 // ---- Constructor ----
 Display::Display(uint8_t bootPin, unsigned long timeoutMs)
 : lcd(LCD_ADDRESS, 16, 2), BOOT_BUTTON(bootPin), timeout(timeoutMs) {}
-// timeoutMs is now stored in `timeout`
 
 // ---- Setup ----
 void Display::begin() {
@@ -16,16 +15,34 @@ void Display::begin() {
 
     pinMode(BOOT_BUTTON, INPUT_PULLUP);
 
-    lastInteraction = millis();   // initialize timer
-
+    lastInteraction = millis();
     showScreen(currentScreen);
 }
 
-// ---- Update (debounce + screen change + timeout) ----
+// ---- Update ----
 void Display::update() {
+
+    // ---------- PUMP WARNING OVERRIDE ----------
+    if (cleanPumpOn || dirtyPumpOn) {
+        if (!pumpWarningActive) {
+            screenBeforeWarning = currentScreen;
+            pumpWarningActive = true;
+            displayLocked = true;
+            showPumpWarning();
+        }
+        return;   // HARD LOCK: nothing else runs
+    }
+
+    // ---------- EXIT WARNING MODE ----------
+    if (pumpWarningActive) {
+        pumpWarningActive = false;
+        displayLocked = false;
+        showScreen(screenBeforeWarning);
+    }
+
+    // ---------- BUTTON DEBOUNCE ----------
     bool reading = digitalRead(BOOT_BUTTON);
 
-    // debounce check
     if (reading != lastStable) {
         lastDebounce = millis();
     }
@@ -33,18 +50,16 @@ void Display::update() {
     if ((millis() - lastDebounce) > debounceDelay) {
         if (reading != lastState) {
             lastState = reading;
-
-            if (lastState == LOW) {  // active LOW
-                Serial.println("BOOT pressed");
+            if (lastState == LOW) {
                 nextScreen();
-                lastInteraction = millis();   // reset inactivity timer
+                lastInteraction = millis();
             }
         }
     }
 
     lastStable = reading;
 
-    // ---- TIMEOUT LOGIC ----
+    // ---------- TIMEOUT ----------
     if (timeout > 0 && currentScreen != 0) {
         if (millis() - lastInteraction > timeout) {
             currentScreen = 0;
@@ -52,25 +67,27 @@ void Display::update() {
         }
     }
 
-    // ---- STATUS SCREEN REFRESH ----
+    // ---------- STATUS SCREEN ----------
     if (currentScreen == 0) {
         updateStatusScreen();
     }
 }
 
-// ---- Screen definitions ----
+// ---- Warning Screen ----
+void Display::showPumpWarning() {
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print(" !! PUMPS ON !! ");
+    lcd.setCursor(0, 1);
+    lcd.print("Do NOT run wash");
+}
+
+// ---- Screen Definitions ----
 void Display::showScreen(uint8_t screen) {
-
-    suppressClear = false;
-
     lcd.clear();
     currentScreen = screen;
 
     switch (screen) {
-
-        // -------------------------
-        //  SCREEN 0 – SYSTEM STATUS
-        // -------------------------
         case 0:
             lcd.setCursor(0, 0);
             lcd.print("WiFi:   SVR:  ");
@@ -78,19 +95,13 @@ void Display::showScreen(uint8_t screen) {
             lcd.print("Last:         ");
             break;
 
-        // -------------------------
-        //  SCREEN 1 – DIRTY WATER
-        // -------------------------
         case 1:
             lcd.setCursor(0, 0);
             lcd.print("Dirty Water Lvl");
             lcd.setCursor(0, 1);
-            lcd.print("Tank 1:        ");  // values overwrite
+            lcd.print("Tank 1:        ");
             break;
 
-        // -------------------------
-        //  SCREEN 2 – CLEAN WATER
-        // -------------------------
         case 2:
             lcd.setCursor(0, 0);
             lcd.print("Clean Water Lvl");
@@ -98,54 +109,40 @@ void Display::showScreen(uint8_t screen) {
             lcd.print("Tank 2:        ");
             break;
 
-        // -------------------------
-        //  SCREEN 3 – CYCLES
-        // -------------------------
         case 3:
             lcd.setCursor(0, 0);
             lcd.print("Total Cycles");
-
             lcd.setCursor(0, 1);
-            lcd.print("                ");          
+            lcd.print("                ");
             break;
 
-
-        // -------------------------
-        //  SCREEN 4 – GALLONS SAVED
-        // -------------------------
         case 4:
             lcd.setCursor(0, 0);
             lcd.print("Amt Water Saved");
-
             lcd.setCursor(0, 1);
-            lcd.print("                ");  
+            lcd.print("                ");
             break;
-
     }
 }
 
+// ---- Status Screen ----
 void Display::updateStatusScreen() {
+    if (displayLocked) return;
 
     unsigned long now = millis();
-    bool wifiChanged       = (wifiConnected != lastWiFi);
-    bool mqttChanged       = (mqttConnected != lastMQTT);
+    bool wifiChanged = (wifiConnected != lastWiFi);
+    bool mqttChanged = (mqttConnected != lastMQTT);
     bool updateTimeChanged = (lastUpdateTime != lastLastUpdateTime);
-    bool intervalPassed    = (now - lastStatusRedraw > statusRedrawInterval);
+    bool intervalPassed = (now - lastStatusRedraw > statusRedrawInterval);
 
     if (!(wifiChanged || mqttChanged || updateTimeChanged || intervalPassed)) return;
 
-    // ---- UPDATE VALUES ONLY ----
-    suppressClear = true;
-
-    // WiFi
     lcd.setCursor(5, 0);
     lcd.print(wifiConnected ? "OK " : "ERR");
 
-    // MQTT
     lcd.setCursor(12, 0);
     lcd.print(mqttConnected ? "OK " : "ERR");
 
-    // Last Update
     lcd.setCursor(5, 1);
     if (lastUpdateTime == 0) {
         lcd.print(" -    ");
@@ -156,66 +153,72 @@ void Display::updateStatusScreen() {
         lcd.print(buf);
     }
 
-    // Snapshot
     lastWiFi = wifiConnected;
     lastMQTT = mqttConnected;
     lastLastUpdateTime = lastUpdateTime;
     lastStatusRedraw = now;
 }
 
-// ---- Advance screen ----
+// ---- Screen Cycling ----
 void Display::nextScreen() {
     currentScreen = (currentScreen + 1) % 5;
     showScreen(currentScreen);
 }
 
+// ---- Data Setters (LCD SAFE) ----
 void Display::setDirtyLevel(int value) {
     dirtyLevel = value;
+    if (displayLocked || currentScreen != 1) return;
 
-    if (currentScreen == 1) {
-        lcd.setCursor(8, 1);
-        lcd.print("     ");       // clear old number
-        lcd.setCursor(8, 1);
-        lcd.print(dirtyLevel);
-        lcd.print("%");
-    }
+    lcd.setCursor(8, 1);
+    lcd.print("     ");
+    lcd.setCursor(8, 1);
+    lcd.print(dirtyLevel);
+    lcd.print("%");
 }
 
 void Display::setCleanLevel(int value) {
     cleanLevel = value;
+    if (displayLocked || currentScreen != 2) return;
 
-    if (currentScreen == 2) {
-        lcd.setCursor(8, 1);
-        lcd.print("     ");
-        lcd.setCursor(8, 1);
-        lcd.print(cleanLevel);
-        lcd.print("%");
-    }
+    lcd.setCursor(8, 1);
+    lcd.print("     ");
+    lcd.setCursor(8, 1);
+    lcd.print(cleanLevel);
+    lcd.print("%");
 }
 
 void Display::setCycles(int value) {
     cycles = value;
+    if (displayLocked || currentScreen != 3) return;
 
-    if (currentScreen == 3) {
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
-        lcd.setCursor(0, 1);
-        lcd.print(cycles);
-    }
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+    lcd.setCursor(0, 1);
+    lcd.print(cycles);
 }
 
 void Display::setGallonsSaved(int value) {
     gallonsSaved = value;
+    if (displayLocked || currentScreen != 4) return;
 
-    if (currentScreen == 4) {
-        lcd.setCursor(0, 1);
-        lcd.print("                ");
-        lcd.setCursor(0, 1);
-        lcd.print(gallonsSaved);
-        lcd.print(" gals");
-    }
+    lcd.setCursor(0, 1);
+    lcd.print("                ");
+    lcd.setCursor(0, 1);
+    lcd.print(gallonsSaved);
+    lcd.print(" gals");
 }
 
+// ---- Pump State ----
+void Display::setCleanPumpState(bool on) {
+    cleanPumpOn = on;
+}
+
+void Display::setDirtyPumpState(bool on) {
+    dirtyPumpOn = on;
+}
+
+// ---- Connectivity ----
 void Display::setWiFiStatus(bool connected) {
     wifiConnected = connected;
 }
@@ -227,4 +230,3 @@ void Display::setMQTTStatus(bool connected) {
 void Display::notifyDataUpdate() {
     lastUpdateTime = millis();
 }
-
